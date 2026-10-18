@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
 import 'theme.dart';
+import 'widgets/server_dialog.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,6 +87,7 @@ class _Root extends StatelessWidget {
                 const SizedBox(height: 16),
                 FilledButton(onPressed: app.refresh, child: const Text('Dobara koshish karo')),
                 const SizedBox(height: 8),
+                TextButton(onPressed: () => showServerDialog(context), child: const Text('Server link badlo')),
                 TextButton(onPressed: app.signOut, child: const Text('Sign out')),
               ],
             ]),

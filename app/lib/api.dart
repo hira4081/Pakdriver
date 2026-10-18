@@ -14,12 +14,15 @@ class ApiException implements Exception {
 
 class Api {
   Api(this.baseUrl, {this.onUnauthorized});
-  final String baseUrl;
+  String baseUrl;
   final void Function()? onUnauthorized;
   String? token;
   final http.Client _client = http.Client();
 
   Future<dynamic> _req(String method, String path, [Object? body]) async {
+    if (baseUrl.isEmpty) {
+      throw ApiException('Pehle Server URL set karo (menu ya login screen par "Server").');
+    }
     final req = http.Request(method, Uri.parse('$baseUrl$path'));
     req.headers['Content-Type'] = 'application/json';
     if (token != null) req.headers['Authorization'] = 'Bearer $token';
@@ -51,6 +54,8 @@ class Api {
     final j = await _req('POST', '/auth/google', {'idToken': idToken}) as Map<String, dynamic>;
     return (token: j['token'] as String, user: Me.fromJson(j['user'] as Map<String, dynamic>));
   }
+
+  Future<void> health() => _req('GET', '/health');
 
   Future<Board> board() async => Board.fromJson(await _req('GET', '/board') as Map<String, dynamic>);
 

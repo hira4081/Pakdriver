@@ -54,7 +54,6 @@ jobs:
           API_URL: ${{ secrets.API_URL }}
           GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
         run: |
-          test -n "$API_URL" || { echo "::error::Set the API_URL secret (https://...)"; exit 1; }
           flutter build apk --release \
             --dart-define=API_URL="$API_URL" \
             --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"

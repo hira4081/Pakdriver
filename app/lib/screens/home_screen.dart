@@ -3,6 +3,7 @@ import '../config.dart';
 import '../main.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/server_dialog.dart';
 import 'driver_home.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
@@ -48,11 +49,13 @@ class HomeScreen extends StatelessWidget {
               final nav = Navigator.of(context);
               if (v == 'profile') nav.push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
               if (v == 'history') nav.push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
+              if (v == 'server') showServerDialog(context);
               if (v == 'out') app.signOut();
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'profile', child: Text('Profile')),
               PopupMenuItem(value: 'history', child: Text('Trips & earnings')),
+              PopupMenuItem(value: 'server', child: Text('Server link')),
               PopupMenuItem(value: 'out', child: Text('Sign out')),
             ],
           ),

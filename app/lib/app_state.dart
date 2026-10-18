@@ -10,6 +10,7 @@ import 'models.dart';
 class AppState extends ChangeNotifier {
   AppState() {
     api = Api(AppConfig.apiUrl, onUnauthorized: _expired);
+    _normalizeDefault();
   }
 
   late final Api api;
@@ -30,6 +31,41 @@ class AppState extends ChangeNotifier {
 
   Me? get me => board?.me;
 
+  String get serverUrl => api.baseUrl;
+
+  void _normalizeDefault() => api.baseUrl = normalizeUrl(api.baseUrl);
+
+  static String normalizeUrl(String raw) {
+    var u = raw.trim();
+    if (u.isEmpty) return '';
+    if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://$u';
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u;
+  }
+
+  /// Saves a new server URL and checks that it answers. Throws ApiException if not.
+  Future<void> setServerUrl(String raw) async {
+    final url = normalizeUrl(raw);
+    final uri = Uri.tryParse(url);
+    if (url.isEmpty || uri == null || uri.host.isEmpty) {
+      throw ApiException('Sahi link likho, jaise https://abc.trycloudflare.com');
+    }
+    final old = api.baseUrl;
+    api.baseUrl = url;
+    try {
+      await api.health();
+    } catch (_) {
+      api.baseUrl = old;
+      throw ApiException('Is link par server nahi mila. Link aur tunnel check karo.');
+    }
+    (await SharedPreferences.getInstance()).setString('server_url', url);
+    connectionError = null;
+    notifyListeners();
+    if (signedIn) await refresh();
+  }
+
   final Set<int> _dismissed = {};
 
   /// The ride to show on screen (a finished ride the user chose to skip rating is hidden).
@@ -49,6 +85,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> boot() async {
     final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('server_url');
+    if (saved != null && saved.isNotEmpty) api.baseUrl = saved;
     api.token = prefs.getString('token');
     signedIn = api.token != null;
     booting = false;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/server_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,7 +44,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   : const Icon(Icons.g_mobiledata_rounded, size: 34),
               label: const Text('Google se continue karo'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => showServerDialog(context),
+              icon: const Icon(Icons.dns_outlined, size: 18),
+              label: Text(AppScope.of(context).serverUrl.isEmpty ? 'Server link set karo' : 'Server: ${AppScope.of(context).serverUrl}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(height: 8),
             const Text(
               'Continue karne par aap hamari terms aur privacy policy se agree karte hain.',
               style: TextStyle(color: Pk.muted, fontSize: 12),
