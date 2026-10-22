@@ -16,7 +16,7 @@ class AppState extends ChangeNotifier {
   late final Api api;
   final GoogleSignIn _google = GoogleSignIn(
     scopes: const ['email', 'profile'],
-    serverClientId: AppConfig.googleServerClientId.isEmpty ? null : AppConfig.googleServerClientId,
+    serverClientId: AppConfig.googleClientId.isEmpty ? null : AppConfig.googleClientId,
   );
 
   bool booting = true;

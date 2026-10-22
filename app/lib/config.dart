@@ -9,6 +9,9 @@ class AppConfig {
   /// The *Web application* OAuth client ID from Google Cloud (not the Android one).
   static const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
+  /// Web client ID with any accidental http(s):// prefix or spaces removed.
+  static String get googleClientId => googleServerClientId.trim().replaceFirst(RegExp(r'^https?://'), '');
+
   static const appName = 'PakDrive';
   static const userAgent = 'com.pakdrive.app';
 
