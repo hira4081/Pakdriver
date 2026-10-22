@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'app_state.dart';
 import 'config.dart';
@@ -7,8 +9,19 @@ import 'screens/profile_screen.dart';
 import 'theme.dart';
 import 'widgets/server_dialog.dart';
 
+/// Last uncaught error, shown in a red banner so problems are visible without a computer.
+final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    lastError.value = details.exceptionAsString();
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    lastError.value = error.toString();
+    return true;
+  };
   runApp(const PakDriveApp());
 }
 
@@ -57,6 +70,32 @@ class _PakDriveAppState extends State<PakDriveApp> with WidgetsBindingObserver {
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: Pk.theme(),
+        builder: (context, child) => Stack(children: [
+          child ?? const SizedBox.shrink(),
+          ValueListenableBuilder<String?>(
+            valueListenable: lastError,
+            builder: (_, err, __) => err == null
+                ? const SizedBox.shrink()
+                : Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Material(
+                      color: Colors.red.shade900,
+                      child: SafeArea(
+                        top: false,
+                        child: InkWell(
+                          onTap: () => lastError.value = null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Text('Error (tap to hide): $err', maxLines: 6, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ]),
         home: const _Root(),
       ),
     );

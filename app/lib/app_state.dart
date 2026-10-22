@@ -60,7 +60,7 @@ class AppState extends ChangeNotifier {
       api.baseUrl = old;
       throw ApiException('Is link par server nahi mila. Link aur tunnel check karo.');
     }
-    (await SharedPreferences.getInstance()).setString('server_url', url);
+    await _store('server_url', url);
     connectionError = null;
     notifyListeners();
     if (signedIn) await refresh();
@@ -83,11 +83,18 @@ class AppState extends ChangeNotifier {
 
   /* ---------- lifecycle ---------- */
 
+  /// Set if local storage failed to start. Shown on the login screen so we can see why.
+  String? bootError;
+
   Future<void> boot() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('server_url');
-    if (saved != null && saved.isNotEmpty) api.baseUrl = saved;
-    api.token = prefs.getString('token');
+    try {
+      final prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 6));
+      final saved = prefs.getString('server_url');
+      if (saved != null && saved.isNotEmpty) api.baseUrl = saved;
+      api.token = prefs.getString('token');
+    } catch (e) {
+      bootError = 'Storage start nahi hui: $e';
+    }
     signedIn = api.token != null;
     booting = false;
     notifyListeners();
@@ -95,6 +102,18 @@ class AppState extends ChangeNotifier {
       await refresh();
       _startPolling();
     }
+  }
+
+  /// Saves (or removes, when value is null) a small setting; never throws.
+  Future<void> _store(String key, String? value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (value == null) {
+        await prefs.remove(key);
+      } else {
+        await prefs.setString(key, value);
+      }
+    } catch (_) {}
   }
 
   void setPaused(bool paused) {
@@ -145,7 +164,7 @@ class AppState extends ChangeNotifier {
     signedIn = false;
     board = null;
     api.token = null;
-    SharedPreferences.getInstance().then((p) => p.remove('token'));
+    _store('token', null);
     notifyListeners();
   }
 
@@ -162,7 +181,7 @@ class AppState extends ChangeNotifier {
     }
     final res = await api.googleLogin(idToken);
     api.token = res.token;
-    (await SharedPreferences.getInstance()).setString('token', res.token);
+    await _store('token', res.token);
     signedIn = true;
     notifyListeners();
     await refresh();
@@ -175,7 +194,7 @@ class AppState extends ChangeNotifier {
     try {
       await _google.signOut();
     } catch (_) {}
-    (await SharedPreferences.getInstance()).remove('token');
+    await _store('token', null);
     api.token = null;
     signedIn = false;
     board = null;

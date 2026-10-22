@@ -44,6 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   : const Icon(Icons.g_mobiledata_rounded, size: 34),
               label: const Text('Google se continue karo'),
             ),
+            if (AppScope.of(context).bootError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(AppScope.of(context).bootError!, style: const TextStyle(color: Pk.danger, fontSize: 11)),
+              ),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: () => showServerDialog(context),
