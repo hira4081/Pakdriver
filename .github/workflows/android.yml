@@ -67,8 +67,6 @@ jobs:
             --dart-define=API_URL="$API_URL" \
             --dart-define=GOOGLE_SERVER_CLIENT_ID="$CID"
 
-      - name: Signing SHA-1 of the built APK (must match Google Cloud Android client)
-        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk | grep SHA1
 
       - uses: actions/upload-artifact@v4
         with:
