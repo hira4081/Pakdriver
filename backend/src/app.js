@@ -64,13 +64,31 @@ const schemas = {
     dropoff: place,
     vehicleType: z.enum(VEHICLES),
     fare: z.number().int().min(50).max(100000),
+    routeKm: z.number().min(0.1).max(2000).optional(),
   }),
-  estimate: z.object({ pickup: coords, dropoff: coords, vehicleType: z.enum(VEHICLES) }),
+  estimate: z.object({
+    pickup: coords,
+    dropoff: coords,
+    vehicleType: z.enum(VEHICLES),
+    routeKm: z.number().min(0.1).max(2000).optional(),
+  }),
   fare: z.object({ fare: z.number().int().min(50).max(100000) }),
   bid: z.object({ fare: z.number().int().min(50).max(100000) }),
   accept: z.object({ bidId: z.number().int() }),
   rate: z.object({ stars: z.number().int().min(1).max(5) }),
 };
+
+/**
+ * The app measures the real road distance (routing service) and sends it as routeKm.
+ * We only trust it if it is plausible against the straight-line distance; otherwise we estimate.
+ */
+function pickKm(a, b, routeKm) {
+  const fallback = roadKm(a, b);
+  if (routeKm == null) return fallback;
+  const straight = haversineKm(a, b);
+  if (routeKm < straight * 0.95 || routeKm > straight * 3 + 1) return fallback;
+  return Math.round(routeKm * 10) / 10;
+}
 
 function parse(schema, body) {
   const r = schema.safeParse(body ?? {});
@@ -273,7 +291,7 @@ export function createApp({ pool, jwtSecret, verifyGoogle, corsOrigin = "*" }) {
   /* ---- fare estimate ---- */
   app.post("/estimate", wrap(async (req) => {
     const b = parse(schemas.estimate, req.body);
-    const km = roadKm(b.pickup, b.dropoff);
+    const km = pickKm(b.pickup, b.dropoff, b.routeKm);
     return { distanceKm: km, suggestedFare: suggestFare(b.vehicleType, km) };
   }));
 
@@ -395,7 +413,7 @@ export function createApp({ pool, jwtSecret, verifyGoogle, corsOrigin = "*" }) {
     const b = parse(schemas.createRide, req.body);
     const u = req.user;
     if (!u.phone) throw bad("Pehle apna phone number save karo");
-    const km = roadKm(b.pickup, b.dropoff);
+    const km = pickKm(b.pickup, b.dropoff, b.routeKm);
     if (km < 0.3) throw bad("Pickup aur dropoff bohat qareeb hain");
     if (km > 800) throw bad("Distance bohat zyada hai");
     const id = await withTx(pool, async (c) => {

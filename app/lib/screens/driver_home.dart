@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../config.dart';
+import '../location.dart';
 import '../main.dart';
 import '../models.dart';
+import '../routing.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/pak_map.dart';
@@ -27,6 +29,7 @@ class _DriverHomeState extends State<DriverHome> {
     final app = AppScope.read(context);
     final fare = await showModalBottomSheet<int>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Pk.surface,
       builder: (_) => _BidSheet(nearby: n),
     );
@@ -149,15 +152,78 @@ class _BidSheet extends StatefulWidget {
 
 class _BidSheetState extends State<_BidSheet> {
   late int _fare = widget.nearby.myBid ?? widget.nearby.offeredFare;
+  RouteInfo? _trip; // pickup -> dropoff
+  RouteInfo? _toPickup; // driver -> pickup
+  LatLng? _me;
+
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Rider ka offer: ${rs(widget.nearby.offeredFare)}', textAlign: TextAlign.center, style: const TextStyle(color: Pk.muted)),
-          const SizedBox(height: 12),
-          FareStepper(fare: _fare, step: 10, onChanged: (v) => setState(() => _fare = v)),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: () => Navigator.pop(context, _fare), child: Text('${rs(_fare)} ki bid bhejo')),
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final n = widget.nearby;
+    final pick = LatLng(n.pickup.lat, n.pickup.lng);
+    final drop = LatLng(n.dropoff.lat, n.dropoff.lng);
+    final p = await currentPosition();
+    final me = p == null ? null : LatLng(p.latitude, p.longitude);
+    final res = await Future.wait([
+      fetchRoutes(pick, drop),
+      if (me != null) fetchRoutes(me, pick),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _me = me;
+      _trip = res[0].isEmpty ? null : res[0].first;
+      _toPickup = (me != null && res[1].isNotEmpty) ? res[1].first : null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.nearby;
+    final pick = LatLng(n.pickup.lat, n.pickup.lng);
+    final drop = LatLng(n.dropoff.lat, n.dropoff.lng);
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).viewPadding.bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(
+          height: 190,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: PakMap(
+              key: ValueKey('bid-${n.id}-${_trip != null}-${_me != null}'),
+              center: pick,
+              zoom: 13,
+              fitPadding: const EdgeInsets.all(28),
+              fitPoints: [...(_trip?.points ?? [pick, drop]), if (_me != null) _me!],
+              line: _trip?.points ?? [pick, drop],
+              markers: [
+                pin(pick, Icons.my_location, Pk.green, size: 28),
+                pin(drop, Icons.location_on, Pk.danger, size: 32),
+                if (_me != null) pin(_me!, Icons.directions_car_filled, Pk.amber, size: 30),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        RouteLines(pickup: n.pickup.label, dropoff: n.dropoff.label),
+        const SizedBox(height: 10),
+        Wrap(spacing: 14, runSpacing: 4, children: [
+          Text(_toPickup != null ? 'Pickup tak: ${_toPickup!.label}' : 'Pickup: ${n.pickupAwayKm} km door',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(_trip != null ? 'Trip: ${_trip!.label}' : 'Trip: ${n.distanceKm} km',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
-      );
+        const Text('Time andaza hai, live traffic ke bagair', style: TextStyle(color: Pk.muted, fontSize: 11)),
+        const SizedBox(height: 14),
+        Text('Rider ka offer: ${rs(n.offeredFare)}', textAlign: TextAlign.center, style: const TextStyle(color: Pk.muted)),
+        const SizedBox(height: 8),
+        FareStepper(fare: _fare, step: 10, onChanged: (v) => setState(() => _fare = v)),
+        const SizedBox(height: 16),
+        FilledButton(onPressed: () => Navigator.pop(context, _fare), child: Text('${rs(_fare)} ki bid bhejo')),
+      ]),
+    );
+  }
 }

@@ -64,20 +64,22 @@ class Api {
       _req('POST', '/me/online', {'online': online, 'lat': lat, 'lng': lng});
   Future<void> sendLocation(double lat, double lng) => _req('POST', '/me/location', {'lat': lat, 'lng': lng});
 
-  Future<({double distanceKm, int suggestedFare})> estimate(Place a, Place b, String vehicleType) async {
+  Future<({double distanceKm, int suggestedFare})> estimate(Place a, Place b, String vehicleType, {double? routeKm}) async {
     final j = await _req('POST', '/estimate', {
       'pickup': {'lat': a.lat, 'lng': a.lng},
       'dropoff': {'lat': b.lat, 'lng': b.lng},
       'vehicleType': vehicleType,
+      if (routeKm != null) 'routeKm': routeKm,
     }) as Map<String, dynamic>;
     return (distanceKm: (j['distanceKm'] as num).toDouble(), suggestedFare: j['suggestedFare'] as int);
   }
 
-  Future<void> createRide(Place a, Place b, String vehicleType, int fare) => _req('POST', '/rides', {
+  Future<void> createRide(Place a, Place b, String vehicleType, int fare, {double? routeKm}) => _req('POST', '/rides', {
         'pickup': a.toJson(),
         'dropoff': b.toJson(),
         'vehicleType': vehicleType,
         'fare': fare,
+        if (routeKm != null) 'routeKm': routeKm,
       });
   Future<void> raiseFare(int rideId, int fare) => _req('PUT', '/rides/$rideId/fare', {'fare': fare});
   Future<void> cancel(int rideId) => _req('POST', '/rides/$rideId/cancel');

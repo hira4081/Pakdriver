@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import '../location.dart';
 import '../main.dart';
 import '../models.dart';
+import '../routing.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/pak_map.dart';
@@ -25,13 +28,71 @@ String statusText(Ride r) {
   }
 }
 
-class RideScreen extends StatelessWidget {
+class RideScreen extends StatefulWidget {
   const RideScreen({super.key, required this.ride});
   final Ride ride;
+  @override
+  State<RideScreen> createState() => _RideScreenState();
+}
+
+class _RideScreenState extends State<RideScreen> {
+  RouteInfo? _route; // real road route currently drawn
+  LatLng? _me; // driver's own position (driver side only)
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    // Driver's route to pickup/dropoff changes as they move.
+    _timer = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (!widget.ride.isRider) _load();
+    });
+  }
+
+  @override
+  void didUpdateWidget(RideScreen old) {
+    super.didUpdateWidget(old);
+    if (old.ride.id != widget.ride.id || old.ride.status != widget.ride.status) {
+      _route = null;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final r = widget.ride;
+    if (r.status == 'completed') return;
+    final pick = LatLng(r.pickup.lat, r.pickup.lng);
+    final drop = LatLng(r.dropoff.lat, r.dropoff.lng);
+    var from = pick;
+    var to = drop;
+    LatLng? me;
+    if (!r.isRider) {
+      final p = await currentPosition();
+      if (p != null) {
+        me = LatLng(p.latitude, p.longitude);
+        from = me;
+        to = r.status == 'in_trip' ? drop : pick;
+      }
+    }
+    final routes = await fetchRoutes(from, to);
+    if (!mounted || widget.ride.id != r.id) return;
+    setState(() {
+      _me = me;
+      _route = routes.isEmpty ? null : routes.first;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    final ride = widget.ride;
     final driver = ride.driver;
     final pick = LatLng(ride.pickup.lat, ride.pickup.lng);
     final drop = LatLng(ride.dropoff.lat, ride.dropoff.lng);
@@ -39,18 +100,28 @@ class RideScreen extends StatelessWidget {
     final dPos = driver != null && driver.lat != null && driver.lng != null && live && ride.isRider
         ? LatLng(driver.lat!, driver.lng!)
         : null;
+    final route = _route;
+    final toPickup = ride.status != 'in_trip';
+
+    String? note;
+    if (route != null) {
+      note = ride.isRider
+          ? 'Trip: ${route.label}'
+          : (_me != null ? '${toPickup ? 'Pickup' : 'Dropoff'} tak: ${route.label}' : 'Trip: ${route.label}');
+    }
 
     return Stack(children: [
       Positioned.fill(
         child: PakMap(
-          key: ValueKey('ride-${ride.id}'),
+          key: ValueKey('ride-${ride.id}-${ride.status}-${route != null}'),
           center: pick,
-          fitPoints: [pick, drop],
-          line: [pick, drop],
+          fitPoints: route?.points ?? [pick, drop],
+          line: route?.points ?? [pick, drop],
           markers: [
             pin(pick, Icons.my_location, Pk.green, size: 30),
             pin(drop, Icons.location_on, Pk.danger),
             if (dPos != null) pin(dPos, Icons.directions_car_filled, Pk.amber, size: 34),
+            if (_me != null) pin(_me!, Icons.directions_car_filled, Pk.amber, size: 34),
           ],
         ),
       ),
@@ -60,7 +131,9 @@ class RideScreen extends StatelessWidget {
         bottom: 0,
         child: Sheet(
           child: SingleChildScrollView(
-            child: ride.isRider ? _RiderPanel(ride: ride, bids: app.board!.bids) : _DriverPanel(ride: ride),
+            child: ride.isRider
+                ? _RiderPanel(ride: ride, bids: app.board!.bids, note: note)
+                : _DriverPanel(ride: ride, note: note),
           ),
         ),
       ),
@@ -71,9 +144,10 @@ class RideScreen extends StatelessWidget {
 /* ------------------------------ RIDER ------------------------------ */
 
 class _RiderPanel extends StatefulWidget {
-  const _RiderPanel({required this.ride, required this.bids});
+  const _RiderPanel({required this.ride, required this.bids, this.note});
   final Ride ride;
   final List<Bid> bids;
+  final String? note;
   @override
   State<_RiderPanel> createState() => _RiderPanelState();
 }
@@ -113,6 +187,16 @@ class _RiderPanelState extends State<_RiderPanel> {
       Text(statusText(r), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       const SizedBox(height: 10),
       RouteLines(pickup: r.pickup.label, dropoff: r.dropoff.label),
+      if (widget.note != null) ...[
+        const SizedBox(height: 8),
+        Row(children: [
+          const Icon(Icons.route_outlined, size: 16, color: Pk.green),
+          const SizedBox(width: 6),
+          Text(widget.note!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        ]),
+        const Text('Time andaza hai (live traffic ke bagair). Traffic ke liye Navigate dabao.',
+            style: TextStyle(color: Pk.muted, fontSize: 11)),
+      ],
       const SizedBox(height: 12),
     ];
 
@@ -199,8 +283,9 @@ class _RiderPanelState extends State<_RiderPanel> {
 /* ------------------------------ DRIVER ------------------------------ */
 
 class _DriverPanel extends StatefulWidget {
-  const _DriverPanel({required this.ride});
+  const _DriverPanel({required this.ride, this.note});
   final Ride ride;
+  final String? note;
   @override
   State<_DriverPanel> createState() => _DriverPanelState();
 }
@@ -233,6 +318,16 @@ class _DriverPanelState extends State<_DriverPanel> {
       Text(statusText(r), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       const SizedBox(height: 10),
       RouteLines(pickup: r.pickup.label, dropoff: r.dropoff.label),
+      if (widget.note != null) ...[
+        const SizedBox(height: 8),
+        Row(children: [
+          const Icon(Icons.route_outlined, size: 16, color: Pk.green),
+          const SizedBox(width: 6),
+          Text(widget.note!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        ]),
+        const Text('Time andaza hai (live traffic ke bagair). Traffic ke liye Navigate dabao.',
+            style: TextStyle(color: Pk.muted, fontSize: 11)),
+      ],
       const SizedBox(height: 12),
       Row(children: [
         CircleAvatar(backgroundColor: Pk.surface2, child: Text(p.name.isEmpty ? '?' : p.name[0].toUpperCase())),

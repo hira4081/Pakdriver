@@ -17,6 +17,7 @@ class PakMap extends StatelessWidget {
     this.center,
     this.zoom = 14,
     this.fitPoints,
+    this.fitPadding = const EdgeInsets.fromLTRB(50, 90, 50, 330),
     this.controller,
     this.markers = const [],
     this.line,
@@ -29,6 +30,9 @@ class PakMap extends StatelessWidget {
 
   /// If set (2+ points), the camera opens fitted to these points.
   final List<LatLng>? fitPoints;
+
+  /// Space kept free around the fitted route (large bottom value = room for the bottom sheet).
+  final EdgeInsets fitPadding;
   final MapController? controller;
   final List<Marker> markers;
   final List<LatLng>? line;
@@ -44,7 +48,7 @@ class PakMap extends StatelessWidget {
         initialCenter: center ?? const LatLng(AppConfig.defaultLat, AppConfig.defaultLng),
         initialZoom: zoom,
         initialCameraFit: fit
-            ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(fitPoints!), padding: const EdgeInsets.fromLTRB(50, 90, 50, 330))
+            ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(fitPoints!), padding: fitPadding)
             : null,
         onPositionChanged: onPositionChanged,
         onTap: onTap == null ? null : (tapPos, p) => onTap!(p),

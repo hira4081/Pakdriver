@@ -200,7 +200,8 @@ class AppState extends ChangeNotifier {
     await _then(api.setOnline(online, p.latitude, p.longitude));
   }
 
-  Future<void> createRide(Place a, Place b, String type, int fare) => _then(api.createRide(a, b, type, fare));
+  Future<void> createRide(Place a, Place b, String type, int fare, {double? routeKm}) =>
+      _then(api.createRide(a, b, type, fare, routeKm: routeKm));
   Future<void> raiseFare(int id, int fare) => _then(api.raiseFare(id, fare));
   Future<void> cancel(int id) => _then(api.cancel(id));
   Future<void> bid(int id, int fare) => _then(api.bid(id, fare));

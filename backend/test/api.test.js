@@ -164,6 +164,19 @@ test("rider cancel, driver back-out reopens, and expiry", async () => {
   assert.equal((await call("GET", "/board", rider)).body.ride, null);
 });
 
+test("distance: real road km from the app is used only when plausible", async () => {
+  const t = await login("km1");
+  await call("PUT", "/me", t, { phone: "03001230001" });
+  const base = { pickup: KHI, dropoff: AIR, vehicleType: "car" };
+  const fallback = (await call("POST", "/estimate", t, base)).body.distanceKm;
+  assert.equal((await call("POST", "/estimate", t, { ...base, routeKm: 22.4 })).body.distanceKm, 22.4);
+  assert.equal((await call("POST", "/estimate", t, { ...base, routeKm: 1 })).body.distanceKm, fallback); // too short
+  assert.equal((await call("POST", "/estimate", t, { ...base, routeKm: 900 })).body.distanceKm, fallback); // too long
+  const r = await call("POST", "/rides", t, { pickup: KHI, dropoff: AIR, vehicleType: "car", fare: 800, routeKm: 22.4 });
+  assert.equal(r.body.distanceKm, 22.4);
+  await call("POST", `/rides/${r.body.id}/cancel`, t);
+});
+
 test("validation: bad payloads are rejected cleanly", async () => {
   const t = await login("val1");
   assert.equal((await call("PUT", "/me", t, { phone: "abc" })).status, 400);
